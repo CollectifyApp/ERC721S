@@ -27,7 +27,7 @@ contract SignModeToken is ERC721S, ERC2981 {
     }
 
     struct TimeZone {
-        uint8 offset;
+        int8 offset;
         string text;
     }
 
