@@ -18,6 +18,7 @@ contract SoulBoundToken is ERC721S, ERC2981 {
     MintTime public privateMintTime;
     MintTime public publicMintTime;
     TimeZone public timeZone;
+    address public tokenContract;
 
     struct MintTime {
         uint64 startAt;
@@ -47,7 +48,8 @@ contract SoulBoundToken is ERC721S, ERC2981 {
         uint96 royaltyFraction,
         TimeZone memory _timezone,
         MintTime memory _privateMintTime,
-        MintTime memory _publicMintTime
+        MintTime memory _publicMintTime,
+        address _tokenContract
     ) ERC721S(name, symbol) {
         mintPrice = _mintPrice;
         maxSupply = _maxSupply;
@@ -56,6 +58,7 @@ contract SoulBoundToken is ERC721S, ERC2981 {
         timeZone = _timezone;
         privateMintTime = _privateMintTime;
         publicMintTime = _publicMintTime;
+        tokenContract = _tokenContract;
         _setDefaultRoyalty(_msgSender(), royaltyFraction);
     }
 
@@ -113,11 +116,14 @@ contract SoulBoundToken is ERC721S, ERC2981 {
         publicMintTime = _publicMintTime;
     }
 
+    function revork(uint256 tokenId) public onlyOwner {
+        _burn(tokenId);
+    }
+
     function privateMint(uint256 quantity, uint256 whiteQuantity, bytes32[] calldata merkleProof) external payable {
         require(block.timestamp >= privateMintTime.startAt && block.timestamp <= privateMintTime.endAt, "error: 10000 time is not allowed");
         uint256 supply = totalSupply();
         require(supply + quantity <= maxSupply, "error: 10001 supply exceeded");
-        require(mintPrice * quantity <= msg.value, "error: 10002 price insufficient");
         address claimAddress = _msgSender();
         require(!privateClaimList[claimAddress], 'error:10003 already claimed');
         require(quantity <= whiteQuantity, "error: 10004 quantity is not allowed");
@@ -125,6 +131,15 @@ contract SoulBoundToken is ERC721S, ERC2981 {
             MerkleProof.verify(merkleProof, merkleRoot, keccak256(abi.encodePacked(claimAddress, whiteQuantity))),
             'error:10004 not in the whitelist'
         );
+        if (tokenContract == address(0)) {
+            require(mintPrice * quantity <= msg.value, "error: 10002 price insufficient");
+        } else {
+            (bool success, bytes memory data) = tokenContract.call(abi.encodeWithSelector(0x23b872dd, claimAddress, address(this), mintPrice * quantity));
+            require(
+                success && (data.length == 0 || abi.decode(data, (bool))),
+                "error: 10002 price insufficient"
+            );
+        }
         _safeMint(claimAddress, quantity);
         privateClaimList[claimAddress] = true;
         _privateMintCount = _privateMintCount + quantity;
@@ -135,9 +150,17 @@ contract SoulBoundToken is ERC721S, ERC2981 {
         require(quantity <= maxCountPerAddress, "error: 10004 max per address exceeded");
         uint256 supply = totalSupply();
         require(supply + quantity <= maxSupply, "error: 10001 supply exceeded");
-        require(mintPrice * quantity <= msg.value, "error: 10002 price insufficient");
         address claimAddress = _msgSender();
         require(!publicClaimList[claimAddress], 'error:10003 already claimed');
+        if (tokenContract == address(0)) {
+            require(mintPrice * quantity <= msg.value, "error: 10002 price insufficient");
+        } else {
+            (bool success, bytes memory data) = tokenContract.call(abi.encodeWithSelector(0x23b872dd, claimAddress, address(this), mintPrice * quantity));
+            require(
+                success && (data.length == 0 || abi.decode(data, (bool))),
+                "error: 10002 price insufficient"
+            );
+        }
         _safeMint(claimAddress, quantity);
         publicClaimList[claimAddress] = true;
     }
@@ -161,7 +184,15 @@ contract SoulBoundToken is ERC721S, ERC2981 {
 
     // This allows the contract owner to withdraw the funds from the contract.
     function withdraw(uint amt) external onlyOwner {
-        (bool sent, ) = payable(_msgSender()).call{value: amt}("");
-        require(sent, "GG: Failed to withdraw Ether");
+        if (tokenContract == address(0)) {
+            (bool sent, ) = payable(_msgSender()).call{value: amt}("");
+            require(sent, "GG: Failed to withdraw Ether");
+        } else {
+            (bool success, bytes memory data) = tokenContract.call(abi.encodeWithSelector(0xa9059cbb, _msgSender(), amt));
+            require(
+                success && (data.length == 0 || abi.decode(data, (bool))),
+                "GG: Failed to withdraw Ether"
+            );
+        }
     }
 }
