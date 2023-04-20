@@ -140,9 +140,9 @@ contract SoulBoundToken is ERC721S, ERC2981 {
                 "error: 10002 price insufficient"
             );
         }
-        _safeMint(claimAddress, quantity);
         privateClaimList[claimAddress] = true;
         _privateMintCount = _privateMintCount + quantity;
+        _safeMint(claimAddress, quantity);
     }
 
     function publicMint(uint256 quantity) external payable {
@@ -161,8 +161,8 @@ contract SoulBoundToken is ERC721S, ERC2981 {
                 "error: 10002 price insufficient"
             );
         }
-        _safeMint(claimAddress, quantity);
         publicClaimList[claimAddress] = true;
+        _safeMint(claimAddress, quantity);
     }
 
     function supportsInterface(bytes4 interfaceId)
