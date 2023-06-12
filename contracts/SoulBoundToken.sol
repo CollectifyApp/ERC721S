@@ -7,6 +7,7 @@ pragma solidity ^0.8.4;
 import './ERC721S.sol';
 import '@openzeppelin/contracts/token/common/ERC2981.sol';
 import '@openzeppelin/contracts/utils/cryptography/MerkleProof.sol';
+import '@openzeppelin/contracts/access/Ownable.sol';
 
 contract SoulBoundToken is ERC721S, ERC2981 {
     bytes32 public merkleRoot;
@@ -120,12 +121,14 @@ contract SoulBoundToken is ERC721S, ERC2981 {
         _burn(tokenId);
     }
 
-    function privateMint(uint256 quantity, uint256 whiteQuantity, bytes32[] calldata merkleProof) external payable {
+    function _privateMint(uint256 quantity, uint256 whiteQuantity, bytes32[] calldata merkleProof, address receiver) internal {
         require(block.timestamp >= privateMintTime.startAt && block.timestamp <= privateMintTime.endAt, "error: 10000 time is not allowed");
         uint256 supply = totalSupply();
         require(supply + quantity <= maxSupply, "error: 10001 supply exceeded");
         address claimAddress = _msgSender();
-        require(!privateClaimList[claimAddress], 'error:10003 already claimed');
+        if (owner() != claimAddress) {
+            require(!privateClaimList[claimAddress], 'error:10003 already claimed');
+        }
         require(quantity <= whiteQuantity, "error: 10004 quantity is not allowed");
         require(
             MerkleProof.verify(merkleProof, merkleRoot, keccak256(abi.encodePacked(claimAddress, whiteQuantity))),
@@ -142,16 +145,26 @@ contract SoulBoundToken is ERC721S, ERC2981 {
         }
         privateClaimList[claimAddress] = true;
         _privateMintCount = _privateMintCount + quantity;
-        _safeMint(claimAddress, quantity);
+        _safeMint(receiver, quantity);
     }
 
-    function publicMint(uint256 quantity) external payable {
+    function privateMint(uint256 quantity, uint256 whiteQuantity, bytes32[] calldata merkleProof) external payable {
+        _privateMint(quantity, whiteQuantity, merkleProof, _msgSender());
+    }
+
+    function privateMintFor(uint256 quantity, uint256 whiteQuantity, bytes32[] calldata merkleProof, address receiver) external payable {
+        _privateMint(quantity, whiteQuantity, merkleProof, receiver);
+    }
+
+    function _publicMint(uint256 quantity, address receiver) internal {
         require(block.timestamp >= publicMintTime.startAt && block.timestamp <= publicMintTime.endAt, "error: 10000 time is not allowed");
         require(quantity <= maxCountPerAddress, "error: 10004 max per address exceeded");
         uint256 supply = totalSupply();
         require(supply + quantity <= maxSupply, "error: 10001 supply exceeded");
         address claimAddress = _msgSender();
-        require(!publicClaimList[claimAddress], 'error:10003 already claimed');
+        if (owner() != claimAddress) {
+            require(!publicClaimList[claimAddress], 'error:10003 already claimed');
+        }
         if (tokenContract == address(0)) {
             require(mintPrice * quantity <= msg.value, "error: 10002 price insufficient");
         } else {
@@ -162,7 +175,15 @@ contract SoulBoundToken is ERC721S, ERC2981 {
             );
         }
         publicClaimList[claimAddress] = true;
-        _safeMint(claimAddress, quantity);
+        _safeMint(receiver, quantity);
+    }
+
+    function publicMint(uint256 quantity) external payable {
+        _publicMint(quantity, _msgSender());
+    }
+
+    function publicMintFor(uint256 quantity, address receiver) external payable {
+        _publicMint(quantity, receiver);
     }
 
     function supportsInterface(bytes4 interfaceId)
