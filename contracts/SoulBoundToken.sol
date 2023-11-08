@@ -18,7 +18,6 @@ contract SoulBoundToken is ERC721S, ERC2981 {
     string public baseURI;
     MintTime public privateMintTime;
     MintTime public publicMintTime;
-    TimeZone public timeZone;
     address public tokenContract;
     Fee[] private fees;
 
@@ -30,11 +29,6 @@ contract SoulBoundToken is ERC721S, ERC2981 {
     struct MintTime {
         uint64 startAt;
         uint64 endAt;
-    }
-
-    struct TimeZone {
-        int8 offset;
-        string text;
     }
 
     struct MintState {
@@ -54,18 +48,16 @@ contract SoulBoundToken is ERC721S, ERC2981 {
         string memory _uri,
         uint96 royaltyFraction,
         Fee[] memory _fees,
-        TimeZone memory _timezone,
-        MintTime[] memory _minttime,
-        // MintTime memory _publicMintTime,
+        MintTime memory _privateMintTime,
+        MintTime memory _publicMintTime,
         address _tokenContract
     ) ERC721S(name, symbol) {
         mintPrice = _mintPrice;
         maxSupply = _maxSupply;
         maxCountPerAddress = _maxCountPerAddress;
         baseURI = _uri;
-        timeZone = _timezone;
-        publicMintTime = _minttime[0];
-        privateMintTime = _minttime[1];
+        publicMintTime = _publicMintTime;
+        privateMintTime = _privateMintTime;
         tokenContract = _tokenContract;
         _setDefaultRoyalty(_msgSender(), royaltyFraction);
         for (uint256 i = 0; i < _fees.length; i++) {
